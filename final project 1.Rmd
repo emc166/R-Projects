@@ -1,0 +1,68 @@
+---
+title: "final project 1"
+author: "Elizabeth Chin"
+date: "10/25/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(fivethirtyeight)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(mdsr)
+library(Hmisc)
+```
+
+## Looking at bad_drivers data set 
+```{r}
+?bad_drivers
+head(bad_drivers)
+```
+
+## Turning bad_drivers$state into an as.factor 
+```{r}
+bad_drivers$state <- as.factor(bad_drivers$state)
+typeof(bad_drivers$state)
+levels(bad_drivers$state)
+```
+
+
+```{r}
+g6 <- bad_drivers %>% 
+  ggplot(aes(x = state, y = losses)) +
+  scale_x_discrete(limits = rev(levels(bad_drivers$state))) +
+    geom_bar(position = "stack", stat="identity", fill = "#EF7A85") + 
+    geom_text(aes(label = round(losses, 0)), hjust = 1.5, size = 2, vjust = 0.5, colour = "white") +
+    geom_text(aes(x = state[1], y = 145, label = "$"), hjust = 6, size = 2, vjust = 0.5, colour = "white") +
+  xlab(NULL) + 
+  ylab (NULL) +
+  ggtitle("Losses Incurred By Insurance Companies") + 
+  labs(subtitle = 'Collisions per insured driver, 2010') + 
+  coord_flip() +
+  theme(axis.ticks = element_blank())+
+  theme(panel.grid.major = element_blank()) +
+  theme(panel.grid.minor = element_blank()) +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) + 
+  theme(axis.text.x = element_blank()) +
+  theme(plot.background = element_rect(fill = "grey93"))
+
+g6
+```
+
+## Link to the dataset 
+https://fivethirtyeight.com/features/which-state-has-the-worst-drivers/
+
+## Information about the data visualization 
+- Since the sum of car collisions is very large and unequally distributed among states and among the number of insured drivers, the data set divided the insurance companies' losses in each state by the number of insured registered drivers located there. Based on the graph, we can see that Idahoans is America's best drivers because it costs insurers on average $83 for each collisions in 2010. The most expensive state is Louisiana, where it costs $195 for each collisions in 2010. 
+
+## Data wrangling-visualization statements
+- First I had to convert bad_drivers(state) into an as.factor so that I can arrange it in alphabetical order when plotting it on the x-axis of the graph. Next, I found the fill color of the graph by using colorilla in order to get as close as possible to the original graph's color. Afterwards, I learned how to place a "$" onto one of the states on the graph by using the geom_text function. Lastly, I used the ggtile function to add the graph's title and I used the theme function to make the background of the graph completely grey and without any axis lines.  
+
+
+
+

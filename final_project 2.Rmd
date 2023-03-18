@@ -1,0 +1,471 @@
+---
+title: "Final Project"
+author: "Marisa Manno, Georgia Wright, Elizabeth Chin"
+date: "12/1/2021"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, root.dir = "~/Desktop/Stat1261", 
+                      out.width = "70%", fig.align = "center")
+library(tidyverse)
+library(dplyr)
+library(RColorBrewer)
+library(broom)
+library(modelr)
+```
+
+```{r}
+
+atus <- read.delim("atusact-0320/atusact_0320.dat", sep="," , header=T)
+atus <- atus %>%
+  format(atus$TUCASEID, scientific = FALSE) 
+
+roster <- read.delim("atusrost-0320/atusrost_0320.dat", sep="," , header=T) 
+roster<- roster %>%format(roster$TUCASEID, scientific = FALSE)
+
+
+```
+
+#### Variables:
+
+We will be looking at how time spent on different categories of travel affects sleep,
+so we have listed the 6 digit (TRCODEP) code for sleep along with the 4 digit (TRTIER2P) 
+codes of each category of travel, each starting with 18 to indicate traveling for that reason. \ 
+
+- 010101 sleeping \
+- 18 travel: \
+  - 1801 personal care
+  - 1802 household activities 
+  - 1803 travel related to caring for household members 
+  - 1804 travel related to caring for nonhousehold members
+  - 1805 work 
+  - 1806 education
+  - 1807 consumer purchases 
+  - 1808 using professional and personal care services
+  - 1809 household services
+  - 1810 using government services and civic obligations 
+  - 1811 eating and drinking
+  - 1812 socializing relaxing leisure
+  - 1813 sports exercise recreation
+  - 1814 religious/spiritual
+  - 1815 volunteer 
+  - 1816 phone calls
+  - 1818 security procedures related to traveling 
+  - 1899 nec 
+
+
+
+First, we filter our variables of interest from the atus data and select columns 
+we need (i.e we did not include things like if a child was with you and where 
+you were during the activity).
+We have called this shortened data frame "atus_main"
+
+```{r}
+atus_main <- atus %>%
+  filter(TRCODEP == 010101 | TRTIER1P == 18 | TRTIER2P == 0201 | TRTIER2P == 0501 |
+          TRTIER2P == 0601 | TRTIER2P == 1203 ) %>%
+  dplyr::select(TUCASEID, TRCODEP, TRTIER1P, TRTIER2P, TUACTDUR) 
+
+
+
+```
+
+
+#### Visualize each category of travel
+
+atus_travel is our main data set with only the codes corresponding to travel.
+First is a bar graph of each category of travel show in hours of time spent on 
+that category.
+```{r}
+atus_travel = atus_main %>%
+  filter(TRTIER1P == 18 )
+
+head(atus_travel)
+
+```
+We are going to determine how many hours were spent for each travel related 
+activity across households. We predict that the most time spent traveling 
+will be related to work, education, and caring for household members. 
+```{r}
+travel_sum <- atus_travel %>% 
+  group_by(TRTIER2P) %>% 
+  summarise(min=sum(as.numeric(TUACTDUR)))  %>% 
+  mutate(hours=min/60)
+
+
+head(travel_sum)
+```
+
+
+```{r}
+travel_sum$TRTIER2P <- as.factor(travel_sum$TRTIER2P)
+
+colorCount = nrow(travel_sum)
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+ggplot(travel_sum, aes(x=TRTIER2P, y=hours, fill=TRTIER2P)) +
+geom_bar(stat = "identity")  + 
+  theme(axis.text.x=element_text(angle = 90, hjust = 0)) + 
+  ggtitle("Hours Spent Travelling by Category") +
+  xlab("Travel Activity") + 
+  ylab("Hours") +
+  scale_fill_hue(name = NULL, labels = c("Personal Care", "Household Act", "Caring for Household Members", 
+                         "Caring for NonHousehold Members", "Work", "Education", 
+                         "Consumer Purchases", "Prof and Personal Care Service", 
+                         "Household Services", "Gov Services and Civic Obligations",
+                         "Eating and Drinking", "Socializing/Leisure", "Sports/Exercise",
+                         "Religious/Spiritual", "Volunteer", "Phone Calls", 
+                         "Security Procedures", "n.e.c.")) 
+
+  
+```
+
+
+
+This bar chart is a visualization of total hours spent for each travel activity 
+across all households. Overall, the most time spent traveling is for consumer 
+purchases. The second most is time spent traveling is for work followed by 
+socializing and leisure.
+
+
+#### Use the ATUS Roster file to visualize travel activities based on sex and age (18 and older)
+```{r}
+roster$TEAGE <- as.numeric(roster$TEAGE)
+roster1<- roster %>% filter(TEAGE>=18)
+rost_act<- roster1 %>% left_join(atus_main, by="TUCASEID")
+
+```
+
+Create variables for age_group and sex:
+```{r}
+rost_act1<-rost_act %>% mutate(age_group = ifelse(TEAGE <=25, "18-25", 
+                                 ifelse(TEAGE<=35, "26-35", 
+                                 ifelse(TEAGE<=45, "36-45", 
+                                 ifelse(TEAGE<=55, "46-55",
+                                ifelse(TEAGE<=65, "56-65",
+                                ifelse(TEAGE<=75, "66-75",
+                                ifelse(TEAGE<=85, "76-85",))))))))
+head(rost_act1)
+
+rost_act2<- rost_act1 %>% mutate(sex= ifelse(TESEX=="2", "Female", "Male"))
+head(rost_act2)
+
+
+```
+
+Filter to display only travel activities and select Case ID, Activity, Activity \ 
+duration, Age Group, and Sex.
+```{r}
+travel2<- rost_act2 %>% 
+  filter(TRTIER1P == 18) %>% 
+  group_by(TUCASEID) %>% 
+  dplyr::select(TUCASEID, TRTIER1P, TRTIER2P, TUACTDUR, age_group, sex)
+head(travel2) 
+```
+Calculate hours spent traveling for each age group. We hypothesize that 36-45 
+year olds will spend the most time traveling because of work and childcare 
+responsibilities.
+```{r, warning = FALSE }
+travel_age<-travel2 %>% 
+  group_by(age_group) %>% 
+  summarise(sum=sum(as.numeric(TUACTDUR))) %>% 
+  mutate(hours=sum/60)
+
+travel_age
+
+ggplot(travel_age, aes(x=age_group, y=hours, fill=age_group))+
+  geom_bar(stat = "identity")  + 
+  theme(axis.text.x=element_text(angle = 90, hjust = 0)) + 
+  ggtitle("Hours Spent Travelling For Age Groups") +
+  xlab("Age Group") + ylab("Hours") +
+  scale_fill_discrete(name = "Age Group") +
+  scale_fill_brewer(palette = "Dark2") +
+  guides(fill=guide_legend(title= "Age Group"))
+  
+```
+
+
+
+
+The age-group 36-45 spends the most time traveling.
+
+##### Travel activities of 36-45 year olds \ 
+```{r}
+group3<-travel2 %>% 
+  filter(age_group=="36-45") %>% 
+  group_by(TRTIER2P) %>% 
+  summarise(sum=sum(as.numeric(TUACTDUR))) %>% 
+  mutate(hours=sum/60) 
+
+head(group3)
+group3$TRTIER2P <- as.factor(group3$TRTIER2P)
+
+ggplot(group3, aes(x=TRTIER2P, y=hours, fill=TRTIER2P)) +
+  geom_bar(stat = "identity")  + 
+  theme(axis.text.x=element_text(angle = 90, hjust = 0)) + 
+  ggtitle("Hours Spent Travelling For 35-46 Year Olds") +
+  xlab("Travel Activity") + ylab("Hours") +
+  scale_fill_hue(name = NULL, labels = c("Personal Care", "Household Act", "Caring for Household Members", 
+                         "Caring for NonHousehold Members", "Work", "Education", 
+                         "Consumer Purchases", "Prof and Personal Care Service", 
+                         "Household Services", "Gov Services and Civic Obligations",
+                         "Eating and Drinking", "Socializing/Leisure", "Sports/Exercise",
+                         "Religious/Spiritual", "Volunteer", "Phone Calls", 
+                         "Security Procedures", "n.e.c.")) 
+```
+
+
+
+
+Individuals aged 35-46 spend the most time traveling for work and consumer 
+purchases, which is consistent with the overall population.
+
+##### Visualize time spent traveling for Females and Males \
+We are looking to determine if differences in time traveling activities exist
+based on sex.
+```{r}
+travel3<- travel2 %>% 
+  group_by(TRTIER2P, sex) %>% 
+  summarise(sum=sum(as.numeric(TUACTDUR))) %>% 
+  mutate(hours=sum/60)
+
+travel3
+
+travel4<- travel2 %>% 
+  group_by(sex) %>% 
+  summarise(sum=sum(as.numeric(TUACTDUR))) %>% 
+  mutate(hours=sum/60)
+travel4
+
+travel3$TRTIER2P <- as.factor(travel3$TRTIER2P)
+
+ggplot(travel3, aes(x=TRTIER2P, y=hours, fill=TRTIER2P)) +
+  geom_bar(stat = "identity")  + 
+  theme(axis.text.x=element_text(angle = 90, hjust = 0)) + 
+  ggtitle("Hours Spent Travelling Based on Sex") +
+  xlab("Travel Activity") + ylab("Hours") + 
+  facet_wrap("sex") +
+  scale_fill_hue(name = NULL, labels = c("Personal Care", "Household Act", "Caring for Household Members", 
+                         "Caring for NonHousehold Members", "Work", "Education", 
+                         "Consumer Purchases", "Prof and Personal Care Service", 
+                         "Household Services", "Gov Services and Civic Obligations",
+                         "Eating and Drinking", "Socializing/Leisure", "Sports/Exercise",
+                         "Religious/Spiritual", "Volunteer", "Phone Calls", 
+                         "Security Procedures", "n.e.c.")) +
+  theme(axis.ticks = element_blank(), 
+        axis.text.x = element_blank()) 
+  
+```
+
+
+
+
+Overall, females spend more time traveling than males. Females spend more time 
+than males for every travel activity besides travel related to sports, 
+exercise, and recreation. 
+
+
+#### Scatter plot and linear model of Travel Categories on Sleep \ 
+First, we made data frames of each of the three travel categories we are 
+interested in, along with one for sleep.
+
+1807 Consumer Purchases
+```{r}
+atus_1807 <- atus_travel %>%
+  group_by(TUCASEID) %>%
+  filter(TRTIER2P == 1807) %>%
+  summarise(sum_1807=sum(as.numeric(TUACTDUR))) 
+
+head(atus_1807)
+
+
+```
+
+1805 Work
+```{r}
+atus_1805 <- atus_travel %>%
+  group_by(TUCASEID) %>%
+  filter(TRTIER2P == 1805) %>%
+  summarise(sum_1805 =sum(as.numeric(TUACTDUR)))
+
+head(atus_1805)
+
+```
+
+1812 Socializing, Relaxing, Leisure
+```{r}
+
+atus_1812 <- atus_travel %>%
+  group_by(TUCASEID) %>%
+  filter(TRTIER2P == 1812) %>%
+  summarise(sum_1812=sum(as.numeric(TUACTDUR)))
+
+head(atus_1812)
+
+```
+
+Sleep
+```{r}
+atus_sleep = atus_main %>%
+  filter(TRCODEP == 010101) %>% 
+  group_by(TUCASEID) %>% 
+  dplyr::select(TUCASEID, TUACTDUR) %>% 
+  summarise(sum_sleep=sum(as.numeric(TUACTDUR))) 
+
+head(atus_sleep)
+```
+
+
+Plot of Consumer Purchases on Sleep (1807)
+```{r, warning = FALSE}
+reg_1807 <- left_join(atus_1807, atus_sleep, by = "TUCASEID")
+head(reg_1807)
+
+
+reg_1807 %>% ggplot(aes(x= sum_1807, y= sum_sleep)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm")
+
+
+```
+
+
+
+
+There is a slight negative relationship between the variables, so we will
+make a linear model. 
+```{r}
+travel_1807_mod <- lm(sum_sleep~sum_1807, data = reg_1807)
+summary(travel_1807_mod)
+
+
+confint(travel_1807_mod, "sum_1807", data = reg_1807, level = 0.99 )
+```
+We are 99% confident that the coefficient for 1807 (consumer purchases) is 
+between -0.0985558 and -0.03186303. The 99% confidence interval does not 
+contain 0, so we are 99% sure that there is a small negative effect. \ 
+
+ 
+Let's look at our next variable
+traveling for work (1805). 
+```{r, warning = FALSE}
+
+reg_1805 <- left_join(atus_1805, atus_sleep, by = "TUCASEID")
+head(reg_1805)
+
+
+reg_1805 %>% ggplot(aes(x= sum_1805, y= sum_sleep)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm") 
+```
+
+It looks like there is a negative correlation, but it seems to be caused by
+high outliers on the x-axis, so we will show a scatter plot that eliminates
+these points from view. 
+
+```{r, warning = FALSE}
+reg_1805 %>% ggplot(aes(x= sum_1805, y= sum_sleep)) +
+  geom_point(alpha = 0.3) +
+  scale_x_continuous(limits = c(0, 1000)) +
+  geom_smooth(method = "lm")
+
+```
+
+
+
+
+Without the very high outliers we can still see a negative correlation. 
+
+Regression of Time Traveling for work (1805) on Time Sleeping
+```{r}
+travel_1805_mod <- lm(sum_sleep~sum_1805, data = reg_1805)
+summary(travel_1805_mod)
+
+confint(travel_1805_mod, "sum_1805", data = reg_1805, level = 0.99 )
+
+
+```
+We are 99% confident that the coefficient for 1805 (work) is between -0.4071852 
+and -0.3318718. Therefore there is a negative relationship because the 
+confidence interval does not contain the value 0. 
+
+Now we will look at travel time for relaxing and leisure (1812)
+```{r, warning = FALSE}
+reg_1812 <- left_join(atus_1812, atus_sleep, by = "TUCASEID")
+
+reg_1812 %>% ggplot(aes(x= sum_1812, y= sum_sleep)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm")
+
+```
+
+
+
+
+
+There appears to be only a very slight relationship along with 3 high outliers.
+The data without the outliers shows no relationship.
+```{r}
+reg_1812 %>% ggplot(aes(x= sum_1812, y= sum_sleep)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm") +
+  scale_x_continuous( limits = c(0, 1100))
+
+```
+
+
+
+
+
+Now we will run a model with both 1805 (work) and 1807 (consumer purchases)
+```{r}
+
+travel_full_reg<- reg_1805 %>% left_join(reg_1807)
+na.omit(travel_full_reg)
+
+travel_full_mod <- lm(sum_sleep ~ sum_1805 + sum_1807, data=travel_full_reg)
+summary(travel_full_mod)
+
+confint(travel_full_mod, "sum_1805", data = travel_full_reg, level = 0.99 )
+confint(travel_full_mod, "sum_1807", data = travel_full_reg, level = 0.99 )
+
+```
+Both coefficients have very low p-values and are significant. We are 99% confident 
+that the 1805 (work) coefficient is between -0.5118716 and -0.3629791 and that 
+the 1807 (consumer purchases) coefficient is between -0.3484959 and -0.172871. 
+Therefore, we are 99% confident that both variables have a negative effect on 
+sleep time. 
+
+
+#### Part One Data Sets 
+1. Marisa Manno - Both Republicans And Democrats Have an Age Problem (congress-terms.csv)
+2. Georgia Wright - How Boomers Get High (drug-use-by-age.csv)
+3. Elizabeth Chin - Dear Mona, Which State Has The Worst Drivers? 
+    (bad_drivers from the fivethirtyeight library)
+
+#### Group Contributions 
+- Marisa Manno
+  - created travel_sum data set 
+  - created data frames for each of the top three travel categories and sleep
+  - created simple linear regressions for the two correlated travel variables on sleep
+  - created a model of both variables on sleep 
+  - ran confidence intervals for each model
+- Georgia Wright
+  - bar graph for Hours Spent Traveling by Category
+  - Wrangled the roster file 
+  - created variables for age and sex
+  - created other travel data sets for other graphs 
+  - created graph for age group
+  - created graph for 35-46 year olds
+  - created graph for 35-46 year olds by sex
+- Elizabeth Chin
+  - created atus_main data set 
+  - created atus_travel data set
+  - added labels to graphs and themes
+  - added labels to graph legends 
+  - created scatter plots for the top three travel categories 
+
